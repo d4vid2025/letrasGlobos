@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Disparo de Letras con Globos - Orden Correcto</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #1a1a1a;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const bottomY = canvas.height - 50;
+
+// La frase que se quiere escribir
+const word = "Feliz Día Del Psicólogo "; 
+const secondLine = "Lic. Lourdes"; // Esta será la palabra que aparece en la segunda línea
+const letters = [];
+let currentIndex = 0;
+let frame = 0;
+
+// Función para calcular el ancho total del texto
+function calculateTextWidth(text) {
+  ctx.font = '48px Arial'; // Aumento el tamaño de la fuente
+  return ctx.measureText(text).width;
+}
+
+// Función para calcular las posiciones iniciales de cada letra
+function calculateLetterPositions(word, startY) {
+  const textWidth = calculateTextWidth(word);
+  const startX = (canvas.width - textWidth) / 2;
+  
+  let positions = [];
+  let currentX = startX;
+  
+  for (let i = 0; i < word.length; i++) {
+    const char = word[i];
+    const charWidth = ctx.measureText(char).width;
+    
+    positions.push({
+      x: currentX + charWidth / 2,
+      width: charWidth,
+      y: startY // Usar la misma altura para todas las letras de la misma línea
+    });
+    
+    currentX += charWidth;
+  }
+  
+  return positions;
+}
+
+// Calcular posiciones de las letras de la primera línea (palabra antes de "LOU")
+const letterPositionsFirstLine = calculateLetterPositions(word, bottomY - 100); // Posición más alta
+// Calcular posiciones de las letras de la segunda línea (palabra "LOU")
+const letterPositionsSecondLine = calculateLetterPositions(secondLine, bottomY + 100); // Posición más baja
+
+function launchLetter(char, index, positions) {
+  // Usar la posición calculada para esta letra
+  const position = positions[index];
+  
+  // Pequeña variación aleatoria para que no sea tan rígido
+  const randomOffsetY = (Math.random() - 0.5) * 30;
+  
+  return {
+    char: char,
+    x: position.x, // Posición horizontal fija basada en la posición de la letra en la palabra
+    y: position.y, // Usar la altura correspondiente
+    targetY: position.y - 150 + randomOffsetY, // Ajustar para cada línea
+    state: 'launching', // launching -> waiting -> flying
+    color: `hsl(${Math.random() * 360}, 100%, 60%)`,
+    balloonOffset: (Math.random() * 10) - 5, // Pequeño offset aleatorio para el globo
+    balloonHeight: 0,
+    floatSpeed: Math.random() * 0.3 + 0.3, // Velocidad de flotación más uniforme
+    wobble: Math.random() * 0.5 // Pequeño movimiento de vaivén
+  };
+}
+
+function drawBalloon(x, y, color) {
+  // Dibujar el globo
+  ctx.beginPath();
+  ctx.ellipse(x, y - 40, 15, 20, 0, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  
+  // Añadir un brillo al globo
+  ctx.beginPath();
+  ctx.ellipse(x - 5, y - 45, 4, 6, Math.PI/4, 0, Math.PI * 0.7);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  
+  // Dibujar la cuerda
+  ctx.beginPath();
+  ctx.moveTo(x, y - 20);
+  ctx.lineTo(x, y);
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  frame++;
+  
+  // Lanzar una nueva letra cada 15 frames (más rápido)
+  if (frame % 15 === 0) {
+    if (currentIndex < word.length) {
+      letters.push(launchLetter(word[currentIndex], currentIndex, letterPositionsFirstLine));
+      currentIndex++;
+    } else if (currentIndex < word.length + secondLine.length) {
+      letters.push(launchLetter(secondLine[currentIndex - word.length], currentIndex - word.length, letterPositionsSecondLine));
+      currentIndex++;
+    }
+  }
+  
+  letters.forEach((letter, i) => {
+    if (letter.state === 'launching') {
+      letter.y -= 8;
+      if (letter.y <= letter.targetY) {
+        letter.y = letter.targetY;
+        letter.state = 'waiting';
+      }
+    } else if (letter.state === 'waiting') {
+      // Pequeña oscilación mientras espera
+      letter.y += Math.sin(frame * 0.05) * 0.5;
+      
+      // Comprobar si todas las letras están en posición
+      if (currentIndex >= word.length + secondLine.length && frame > 15 * (word.length + secondLine.length) + 90) {
+        letter.state = 'flying';
+      }
+    } else if (letter.state === 'flying') {
+      letter.y -= letter.floatSpeed;
+      letter.balloonHeight += letter.floatSpeed;
+      
+      // Añadir un ligero movimiento de vaivén mientras vuela
+      letter.x += Math.sin(frame * 0.03 + i * 0.5) * letter.wobble;
+    }
+    
+    // Dibujar letra (aumento el tamaño de la fuente)
+    ctx.font = '48px Arial'; // Aumento el tamaño de la fuente a 48px
+    ctx.fillStyle = letter.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(letter.char, letter.x + letter.balloonOffset, letter.y);
+    
+    // Dibujar globo si está volando
+    if (letter.state === 'flying') {
+      drawBalloon(letter.x + letter.balloonOffset, letter.y - 40, letter.color);
+    }
+  });
+  
+  requestAnimationFrame(animate);
+}
+
+// Iniciar la animación
+animate();
+
+// Ajustar el canvas cuando cambia el tamaño de la ventana
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  // Recalcular posiciones de letras
+  const updatedPositionsFirstLine = calculateLetterPositions(word, bottomY - 100);
+  const updatedPositionsSecondLine = calculateLetterPositions(secondLine, bottomY + 100);
+  
+  // Actualizar posiciones de letras existentes
+  letters.forEach((letter, index) => {
+    if (index < updatedPositionsFirstLine.length) {
+      letter.x = updatedPositionsFirstLine[index].x;
+      letter.y = updatedPositionsFirstLine[index].y;
+    } else if (index < updatedPositionsFirstLine.length + updatedPositionsSecondLine.length) {
+      letter.x = updatedPositionsSecondLine[index - updatedPositionsFirstLine.length].x;
+      letter.y = updatedPositionsSecondLine[index - updatedPositionsFirstLine.length].y;
+    }
+  });
+});
+</script>
+</body>
+</html>
+
